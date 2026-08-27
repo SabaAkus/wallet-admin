@@ -1,0 +1,4 @@
+transaction ID,player ID,country,operator,type,amount,currency,status,balance after,date/time
+TX-101,PLAYER-3,Georgia,Operator A,Deposit,100.00,USD,Approved,100.00,2025-02-01 10:00:00
+TX-102,PLAYER-3,Georgia,Operator A,Game Entry,10.00,USD,Approved,90.00,2025-02-01 10:00:00
+
