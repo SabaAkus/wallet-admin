@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ transaction.external_transaction_id }} · Wallet Admin{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>{{ transaction.external_transaction_id }}</h1><p class="muted">{{ transaction.occurred_at|utc }}</p></div><a class="button secondary" href="{{ url_for('transactions.list_transactions') }}">Back</a></div>
+{% if transaction.source.value == 'HISTORICAL_IMPORT' %}<div class="notice">Historical source record — read-only. Its supplied balance is preserved but it cannot enter the system workflow.</div>{% endif %}
+<section class="panel detail-grid">
+  <div><span>Status</span><strong class="badge status-{{ transaction.status.value|lower }}">{{ transaction.status.value }}</strong></div>
+  <div><span>Source</span><strong>{{ transaction.source.value|replace('_',' ')|title }}</strong></div>
+  <div><span>Player</span><strong>{{ player.external_player_id }}</strong></div><div><span>Operator</span><strong>{{ operator.name }}</strong></div>
+  <div><span>Country</span><strong>{{ transaction.country }}</strong></div><div><span>Wallet currency</span><strong>{{ transaction.currency }}</strong></div>
+  <div><span>Type</span><strong>{{ transaction.transaction_type.value|replace('_',' ')|title }}</strong></div><div><span>Direction</span><strong>{{ transaction.direction.value }}</strong></div>
+  <div><span>Amount</span><strong>{{ transaction.amount_minor|money(transaction.currency) }}</strong></div><div><span>Source balance after</span><strong>{{ transaction.source_balance_after_minor|money(transaction.currency) if transaction.source_balance_after_minor is not none else '—' }}</strong></div>
+  <div><span>Created</span><strong>{{ transaction.created_at|utc }}</strong></div><div><span>Approved</span><strong>{{ transaction.approved_at|utc }}</strong></div>
+  {% if transaction.status_reason %}<div class="full"><span>Status reason</span><strong>{{ transaction.status_reason }}</strong></div>{% endif %}
+  {% if transaction.note %}<div class="full"><span>Note</span><strong>{{ transaction.note }}</strong></div>{% endif %}
+</section>
+{% if posting %}<section class="panel"><h2>Authoritative system posting</h2><div class="detail-grid"><div><span>Before</span><strong>{{ posting.balance_before_minor|money(transaction.currency) }}</strong></div><div><span>Delta</span><strong>{{ posting.delta_minor|money(transaction.currency) }}</strong></div><div><span>After</span><strong>{{ posting.balance_after_minor|money(transaction.currency) }}</strong></div><div><span>Wallet version</span><strong>{{ posting.wallet_version }}</strong></div></div></section>{% endif %}
+{% if can_process %}<section class="panel"><h2>Process pending transaction</h2><div class="action-grid">
+  <form method="post" action="{{ url_for('transactions.approve', transaction_id=transaction.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">Approve</button></form>
+  <form method="post" action="{{ url_for('transactions.fail', transaction_id=transaction.id) }}" class="stack"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Failure reason<input name="reason" required></label><button class="button danger" type="submit">Mark failed</button></form>
+  <form method="post" action="{{ url_for('transactions.cancel', transaction_id=transaction.id) }}" class="stack"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Cancellation reason<input name="reason" required></label><label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> Confirm cancellation</label><button class="button danger" type="submit">Cancel transaction</button></form>
+</div></section>{% endif %}
+{% if can_reverse %}<a class="button danger" href="{{ url_for('transactions.reverse', transaction_id=transaction.id) }}">Create reversal</a>{% endif %}
+{% endblock %}
+

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.extensions import get_session
 from app.models import (
     AuditEvent,
+    BalancePosting,
     Operator,
     Player,
     Transaction,
@@ -490,6 +491,34 @@ class HistoricalImporter:
             if wallet is None:
                 continue
             player = self.session.get(Player, wallet.player_id)
+            has_system_posting = self.session.scalar(
+                select(BalancePosting.id)
+                .where(BalancePosting.wallet_id == wallet.id)
+                .limit(1)
+            )
+            if has_system_posting is not None:
+                anchor = (
+                    self.session.get(Transaction, wallet.historical_anchor_transaction_id)
+                    if wallet.historical_anchor_transaction_id
+                    else None
+                )
+                report.warn_once(
+                    f"Wallet {player.external_player_id}/{wallet.currency} already has "
+                    "system postings; historical import did not change its initialized "
+                    "balance or anchor."
+                )
+                report.wallet_anchors.append(
+                    WalletAnchorResult(
+                        player_id=player.external_player_id,
+                        currency=wallet.currency,
+                        external_transaction_id=(
+                            anchor.external_transaction_id if anchor else None
+                        ),
+                        balance_minor=wallet.current_balance_minor,
+                        ambiguous=False,
+                    )
+                )
+                continue
             candidates = list(
                 self.session.scalars(
                     select(Transaction)

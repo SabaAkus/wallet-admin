@@ -59,6 +59,11 @@ def session_factory(app):
 
 
 @pytest.fixture
+def client(app):
+    return app.test_client()
+
+
+@pytest.fixture
 def fixture_path():
     def get_fixture(name: str) -> Path:
         return FIXTURES / name

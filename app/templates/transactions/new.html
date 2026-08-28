@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}New transaction · Wallet Admin{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>New system transaction</h1><p class="muted">Creates a PENDING transaction; it does not change balance yet.</p></div></div>
+<form method="post" action="{{ url_for('transactions.create_transaction') }}" class="panel form-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>External transaction ID<input name="external_transaction_id" required maxlength="150"></label>
+  <label>Wallet<select name="wallet_id" required>{% for wallet, player in wallets %}<option value="{{ wallet.id }}">{{ player.external_player_id }} · {{ wallet.currency }} · {{ wallet.current_balance_minor|money(wallet.currency) }}</option>{% endfor %}</select></label>
+  <label>Operator<select name="operator_id" required>{% for operator in operators %}<option value="{{ operator.id }}">{{ operator.name }}</option>{% endfor %}</select></label>
+  <label>Country<input name="country" required maxlength="100"></label>
+  <label>Type<select name="transaction_type" required>{% for item in transaction_types %}<option value="{{ item.value }}">{{ item.value|replace('_',' ')|title }}</option>{% endfor %}</select></label>
+  <label>Direction<select name="direction" required>{% for item in directions %}<option value="{{ item.value }}">{{ item.value }}</option>{% endfor %}</select></label>
+  <label>Amount (major units)<input type="number" name="amount" min="0.01" step="0.01" required></label>
+  <label>Occurred at (UTC)<input type="datetime-local" name="occurred_at" value="{{ now }}" required></label>
+  <label class="full">Note<textarea name="note" rows="3"></textarea></label>
+  <div class="full form-actions"><button class="button" type="submit">Create pending transaction</button><a class="button secondary" href="{{ url_for('transactions.list_transactions') }}">Cancel</a></div>
+</form>
+{% endblock %}
+

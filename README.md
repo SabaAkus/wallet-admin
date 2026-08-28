@@ -1,75 +1,116 @@
 # Wallet Admin
 
-This repository currently contains the approved Stage 1–6 backend foundation:
-
-- Flask application factory and SQLAlchemy database integration
-- seven-table schema and Alembic migration
-- historical CSV snapshot importer
-- pending system transaction creation and idempotency
-- atomic approval, cancellation, and reversal services
-- schema, import, lifecycle, rollback, and concurrency tests
-
-Authentication, authorization routes, and UI pages are intentionally deferred until
-the Stage 6 checkpoint is reviewed.
+A small server-rendered administration panel for a real-money gaming wallet. It is
+a Flask modular monolith with an append-oriented transaction ledger, atomic cached
+wallet balances, role-based access, CSRF protection, and audit logging.
 
 ## Local setup (PowerShell)
+
+Python 3.13 was used for the take-home. Create an isolated environment and install
+only the application and test dependencies:
 
 ```powershell
 py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
 ```
 
-## Database migration
+If the Windows `py` launcher is unavailable, use the installed interpreter directly,
+for example:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe" -m venv .venv
+```
+
+The local configuration uses SQLite at `instance/wallet_admin.db`, an HTTP-compatible
+session cookie, and a development-only secret. Do not use those defaults in production.
+
+## Database and sample data
 
 ```powershell
 .\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m flask --app run.py import-historical data\sample_transactions.csv
 ```
 
-To verify that ORM metadata and migrations agree:
+The importer prints a JSON report with imported, rejected, duplicate, wallet-anchor,
+warning, and ambiguity details. It is safe to retry: identical IDs/payloads are
+reported as duplicates, while a reused ID with different data is rejected and audited.
+
+The assignment PDF's 12 rows are preserved as read-only `HISTORICAL_IMPORT` records.
+They initialize wallet snapshot balances but create no postings and are never replayed.
+This includes pending source row TX10012. See [sample data review](docs/sample-data-review.md).
+
+Financial records are not generically editable. Updates use controlled status
+transitions and linked reversals to preserve auditability and balance integrity.
+
+## Create users
+
+For a real initial local administrator, enter a password interactively:
 
 ```powershell
-.\.venv\Scripts\python.exe -m alembic check
+.\.venv\Scripts\python.exe -m flask --app run.py create-admin --username admin
 ```
 
-## Historical import
-
-The importer accepts a CSV extracted from the assignment source:
+For a disposable demo, generate one user per role with random passwords:
 
 ```powershell
-.\.venv\Scripts\python.exe -m flask --app run.py import-historical data\sample.csv
+.\.venv\Scripts\python.exe -m flask --app run.py setup-demo-users --prefix demo
 ```
 
-It prints a JSON report containing imported counts, idempotent and conflicting
-duplicates, rejected rows, warnings, ambiguous wallets, and chosen wallet anchors.
+The generated passwords are printed once and are not hardcoded in source. Choose a
+new prefix if rerunning the command.
 
-Historical transactions preserve `source_balance_after_minor` and never create
-`balance_postings`. The latest unambiguous historical balance initializes the
-player/currency wallet. An ambiguous wallet remains explicitly uninitialized.
+## Run and demo
 
-All `HISTORICAL_IMPORT` transactions, including supplied pending rows such as
-TX10012, are read-only sample/seed records. The assignment requires storing and
-displaying the sample and permits authorized record updates, but does not require
-the supplied pending rows to enter the operational workflow. Approval, failure,
-cancellation, and reversal actions apply only to `SYSTEM` transactions.
+```powershell
+.\.venv\Scripts\python.exe -m flask --app run.py run
+```
 
-The assignment PDF/sample file is not currently present in this workspace, so the
-real source rows have not been imported. Files under `tests/fixtures` are synthetic
-test cases and are not presented as assignment data.
+Open `http://127.0.0.1:5000` and use this short demonstration:
 
-## Tests
+1. Sign in as Viewer; inspect dashboard totals, transaction filters, wallet balances,
+   and the read-only label on a historical transaction.
+2. Sign in as Finance Operator; create an ordinary transaction. It begins `PENDING`.
+   Approve it and show its posting plus updated wallet balance. Create another and
+   cancel it with a confirmation and reason.
+3. Sign in as Administrator; reverse the approved system transaction with a reason,
+   inspect the linked result, review audit events, and manage a user's role/status.
+
+## Verify
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -vv
+.\.venv\Scripts\python.exe -m alembic check
+.\.venv\Scripts\python.exe -m pip check
 ```
 
-## Current import assumptions
+Migration downgrade/upgrade can be checked against a disposable database by setting
+`DATABASE_URL`, then running `alembic upgrade head`, `alembic downgrade base`, and
+`alembic upgrade head`.
 
-- Player IDs are global across operators.
-- Wallet identity is player plus currency; operator is transaction metadata.
-- Input monetary values are major units with exactly two supported decimal places.
-- Input timestamps without a timezone are interpreted as UTC and reported as a warning.
-- Country and operator labels are preserved as source text after trimming whitespace.
-- Transaction types determine direction, except historical reversals require an explicit direction and original transaction reference.
-- Equal latest timestamps with different balances are ambiguous and do not initialize the wallet.
-- Historical rows are stored but never replayed as new wallet changes.
-- A pending historical transaction's balance-after value may initialize a wallet. This is an explicit import assumption because the supplied data is an incomplete historical snapshot and the pending rows show the unchanged current balance; pending transactions still create no posting.
+## Production configuration
+
+Set `APP_ENV=production`, a high-entropy `SECRET_KEY`, and a PostgreSQL `DATABASE_URL`.
+Production mode forces `SESSION_COOKIE_SECURE`; startup rejects the development secret.
+Terminate TLS at the application edge. Additional production work is listed in
+[production readiness](docs/production-readiness.md).
+
+Design details are in [architecture](docs/architecture.md), with explicit
+[assumptions, tradeoffs, and risks](docs/assumptions-and-risks.md). The
+[requirement traceability table](docs/traceability.md) maps every assignment item to
+implementation and verification evidence.
+
+## AI usage
+
+AI was used as the coding and review partner to implement the approved schema,
+historical importer, financial services, authentication, server-rendered UI, tests,
+and documentation. The candidate retained responsibility for product and architecture
+decisions, including wallet identity, pending-withdrawal behavior, historical snapshot
+semantics, transaction immutability, reversal policy, roles, and the two-day scope.
+
+AI proposals that were changed or rejected include operator-scoped wallets, generic
+correction transactions, temporarily exposing `APPROVED` before posting, a reversal
+constraint that blocked later attempts after failure, processing historical pending
+rows, microservices, and additional frontend/infrastructure complexity. Correctness
+was checked through source review, database constraints, rollback and independent-
+connection concurrency tests, role/CSRF integration tests, migration/drift checks,
+clean setup rehearsal, and manual desktop/mobile HTTP UI verification.

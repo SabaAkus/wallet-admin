@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block title %}Not found{% endblock %}{% block content %}<section class="panel error-page"><h1>Not found</h1><p>The requested record does not exist.</p><a class="button" href="{{ url_for('dashboard.index') if current_user.is_authenticated else url_for('auth.login') }}">Continue</a></section>{% endblock %}
+

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Wallets · Wallet Admin{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Wallets</h1><p class="muted">{{ page_data.total }} player/currency wallet(s)</p></div></div>
+<form method="get" class="panel filter-grid compact"><label>Player<input name="player" value="{{ request.args.get('player','') }}"></label><label>Currency<input name="currency" maxlength="3" value="{{ request.args.get('currency','') }}"></label><div class="filter-actions"><button class="button" type="submit">Filter</button><a class="button secondary" href="{{ url_for('wallets.list_wallets') }}">Clear</a></div></form>
+<section class="panel"><table><thead><tr><th>Player</th><th>Country</th><th>Currency</th><th class="number">Available balance</th><th>Version</th><th>State</th></tr></thead>
+<tbody>{% for wallet, player in page_data.items %}<tr><td><a href="{{ url_for('wallets.detail', wallet_id=wallet.id) }}">{{ player.external_player_id }}</a></td><td>{{ player.current_country or '—' }}</td><td>{{ wallet.currency }}</td><td class="number">{{ wallet.current_balance_minor|money(wallet.currency) if wallet.balance_initialized else 'Unavailable' }}</td><td>{{ wallet.version }}</td><td>{{ 'Initialized' if wallet.balance_initialized else 'Uninitialized' }}</td></tr>{% else %}<tr><td colspan="6" class="empty">No wallets</td></tr>{% endfor %}</tbody></table></section>
+{% include "pagination.html" %}
+{% endblock %}
+

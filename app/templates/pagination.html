@@ -1,0 +1,8 @@
+{% if page_data.pages > 1 %}
+<nav class="pagination" aria-label="Pagination">
+  {% if page_data.has_previous %}<a class="button secondary small" href="{{ url_for(request.endpoint, page=page_data.page-1, **filter_args) }}">Previous</a>{% endif %}
+  <span>Page {{ page_data.page }} of {{ page_data.pages }}</span>
+  {% if page_data.has_next %}<a class="button secondary small" href="{{ url_for(request.endpoint, page=page_data.page+1, **filter_args) }}">Next</a>{% endif %}
+</nav>
+{% endif %}
+

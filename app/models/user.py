@@ -4,12 +4,13 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
+from flask_login import UserMixin
 
 from .base import Base
 from .enums import UserRole
 
 
-class User(Base):
+class User(UserMixin, Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint(

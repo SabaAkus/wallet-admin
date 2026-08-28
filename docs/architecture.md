@@ -1,4 +1,4 @@
-# Stage 1–3 architecture checkpoint
+# Architecture
 
 The application is a Flask modular monolith using direct SQLAlchemy sessions and
 Alembic migrations. The primary tables are `users`, `operators`, `players`,
@@ -12,6 +12,9 @@ The importer deliberately does not replay historical rows. It initializes a wall
 from its latest unambiguous supplied balance and stores that transaction as the
 provenance anchor. Because the source is an incomplete snapshot, no opening
 transaction is inferred and no attempt is made to reconcile the displayed subset.
+Once a wallet has a system posting, later historical-import retries leave its cached
+balance and anchor unchanged and report a warning; snapshot data can never overwrite
+live ledger effects.
 
 A pending historical transaction may be the initialization anchor when it is the
 latest source row. This is an explicit snapshot-import assumption supported by the
@@ -46,4 +49,25 @@ multiple pending/failed attempts for an original but at most one approved revers
 The original row lock is the primary concurrency control and the index is the final
 database backstop.
 
-Authentication, authorization routes, and UI remain outside this checkpoint.
+## Authentication and authorization
+
+Flask-Login provides signed session authentication using Flask's cookie; passwords
+are stored only as Werkzeug adaptive hashes. Every state-changing form is protected
+by Flask-WTF CSRF validation. Local cookies are `HttpOnly` and `SameSite=Lax`;
+production mode additionally requires HTTPS cookies and refuses the development secret.
+
+Permission decorators enforce route access, and the financial and user services
+repeat important role checks so direct service invocation cannot bypass policy.
+Viewers have read access, Finance Operators can create/process ordinary system
+transactions, and Administrators additionally control reversals, audit viewing, and
+users. Inactive users are rejected by login and user loading. The final active
+administrator cannot be disabled or demoted; PostgreSQL locks active administrator
+rows while evaluating that invariant.
+
+## Web layer
+
+The UI is server-rendered Jinja with local CSS and no CDN or client framework. Routes
+query through a request-scoped read session and delegate mutations to short-lived
+service sessions. Transaction and wallet lists use bounded database pagination.
+Filters are applied in SQL. UTC timestamps are labeled consistently and money stays
+integer minor units until display formatting.

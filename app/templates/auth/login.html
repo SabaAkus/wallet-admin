@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Wallet Admin{% endblock %}
+{% block content %}
+<section class="panel login-panel">
+  <h1>Wallet Admin</h1>
+  <p class="muted">Internal access only</p>
+  <form method="post" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Username<input name="username" autocomplete="username" required autofocus></label>
+    <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="button" type="submit">Sign in</button>
+  </form>
+</section>
+{% endblock %}
+

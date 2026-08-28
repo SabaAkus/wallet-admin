@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Wallet Admin{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Dashboard</h1><p class="muted">Financial snapshot grouped by currency</p></div></div>
+<div class="grid three">
+  {% for currency, balance, wallet_count in wallet_rows %}
+  <section class="metric"><span>Available wallet balance</span><strong>{{ balance|money(currency) }}</strong><small>{{ wallet_count }} initialized wallet(s)</small></section>
+  {% else %}<section class="metric"><span>Wallets</span><strong>No data</strong></section>{% endfor %}
+  {% for currency, count, amount in pending_rows %}
+  <section class="metric"><span>Pending transactions · {{ currency }}</span><strong>{{ count }}</strong><small>{{ amount|money(currency) }}</small></section>
+  {% endfor %}
+</div>
+<section class="panel">
+  <h2>Approved transaction totals</h2>
+  <table><thead><tr><th>Currency</th><th>Type</th><th>Count</th><th class="number">Gross amount</th></tr></thead>
+  <tbody>{% for currency, transaction_type, amount, count in approved_rows %}
+    <tr><td>{{ currency }}</td><td>{{ transaction_type.value|replace('_', ' ')|title }}</td><td>{{ count }}</td><td class="number">{{ amount|money(currency) }}</td></tr>
+  {% else %}<tr><td colspan="4" class="empty">No approved transactions</td></tr>{% endfor %}</tbody></table>
+</section>
+{% endblock %}
+

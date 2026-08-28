@@ -1,0 +1,1 @@
+{% extends "base.html" %}{% block title %}Access denied{% endblock %}{% block content %}<section class="panel error-page"><h1>Access denied</h1><p>Your role does not permit this action.</p><a class="button" href="{{ url_for('dashboard.index') }}">Dashboard</a></section>{% endblock %}

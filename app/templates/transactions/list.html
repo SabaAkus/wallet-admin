@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Transactions · Wallet Admin{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Transactions</h1><p class="muted">{{ page_data.total }} result(s)</p></div>
+{% if current_user.role.value in ['FINANCE_OPERATOR', 'ADMINISTRATOR'] %}<a class="button" href="{{ url_for('transactions.new_transaction') }}">New transaction</a>{% endif %}</div>
+<form method="get" class="panel filter-grid">
+  <label>Player<input name="player" value="{{ request.args.get('player', '') }}"></label>
+  <label>Operator<select name="operator"><option value="">All</option>{% for operator in operators %}<option value="{{ operator.code }}" {% if request.args.get('operator','')|upper == operator.code %}selected{% endif %}>{{ operator.name }}</option>{% endfor %}</select></label>
+  <label>Country<input name="country" value="{{ request.args.get('country', '') }}"></label>
+  <label>Status<select name="status"><option value="">All</option>{% for item in statuses %}<option value="{{ item.value }}" {% if request.args.get('status','')|upper == item.value %}selected{% endif %}>{{ item.value }}</option>{% endfor %}</select></label>
+  <label>Type<select name="type"><option value="">All</option>{% for item in transaction_types %}<option value="{{ item.value }}" {% if request.args.get('type','')|upper == item.value %}selected{% endif %}>{{ item.value|replace('_',' ')|title }}</option>{% endfor %}</select></label>
+  <label>Source<select name="source"><option value="">All</option>{% for item in sources %}<option value="{{ item.value }}" {% if request.args.get('source','')|upper == item.value %}selected{% endif %}>{{ item.value|replace('_',' ')|title }}</option>{% endfor %}</select></label>
+  <label>From<input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}"></label>
+  <label>To<input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}"></label>
+  <div class="filter-actions"><button class="button" type="submit">Filter</button><a class="button secondary" href="{{ url_for('transactions.list_transactions') }}">Clear</a></div>
+</form>
+<section class="panel table-wrap"><table><thead><tr><th>ID</th><th>Player</th><th>Operator</th><th>Type</th><th>Status</th><th>Source</th><th class="number">Amount</th><th>Date</th></tr></thead>
+<tbody>{% for transaction, player, operator in page_data.items %}<tr>
+  <td><a href="{{ url_for('transactions.detail', transaction_id=transaction.id) }}">{{ transaction.external_transaction_id }}</a></td>
+  <td>{{ player.external_player_id }}</td><td>{{ operator.name }}</td><td>{{ transaction.transaction_type.value|replace('_',' ')|title }}</td>
+  <td><span class="badge status-{{ transaction.status.value|lower }}">{{ transaction.status.value }}</span></td>
+  <td><span class="badge source-{{ transaction.source.value|lower }}">{{ transaction.source.value|replace('_',' ')|title }}</span></td>
+  <td class="number">{{ transaction.amount_minor|money(transaction.currency) }} {{ transaction.direction.value }}</td><td>{{ transaction.occurred_at|utc }}</td>
+</tr>{% else %}<tr><td colspan="8" class="empty">No matching transactions</td></tr>{% endfor %}</tbody></table></section>
+{% include "pagination.html" %}
+{% endblock %}
+

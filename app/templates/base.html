@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Wallet Admin{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+  {% if current_user.is_authenticated %}
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard.index') }}">Wallet Admin</a>
+    <nav>
+      <a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+      <a href="{{ url_for('transactions.list_transactions') }}">Transactions</a>
+      <a href="{{ url_for('wallets.list_wallets') }}">Wallets</a>
+      {% if current_user.role.value == 'ADMINISTRATOR' %}
+      <a href="{{ url_for('audit.list_events') }}">Audit</a>
+      <a href="{{ url_for('admin.users') }}">Users</a>
+      {% endif %}
+    </nav>
+    <div class="session-info">
+      <span>{{ current_user.username }} · {{ current_user.role.value|replace('_', ' ')|title }}</span>
+      <form method="post" action="{{ url_for('auth.logout') }}" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button secondary small" type="submit">Sign out</button>
+      </form>
+    </div>
+  </header>
+  {% endif %}
+  <main class="container{% if not current_user.is_authenticated %} narrow{% endif %}">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
+

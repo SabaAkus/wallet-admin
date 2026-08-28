@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Reverse {{ transaction.external_transaction_id }} · Wallet Admin{% endblock %}
+{% block content %}<div class="page-heading"><div><h1>Reverse {{ transaction.external_transaction_id }}</h1><p class="muted">A new opposite transaction will be created and immediately processed.</p></div></div>
+<div class="notice warning">This preserves the original. The reversal will fail if it would make available balance negative.</div>
+<form method="post" class="panel stack"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>New external transaction ID<input name="external_transaction_id" required maxlength="150"></label>
+  <label>Reason<textarea name="reason" required rows="3"></textarea></label>
+  <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> I confirm this financial reversal</label>
+  <div class="form-actions"><button class="button danger" type="submit">Create and process reversal</button><a class="button secondary" href="{{ url_for('transactions.detail', transaction_id=transaction.id) }}">Back</a></div>
+</form>{% endblock %}

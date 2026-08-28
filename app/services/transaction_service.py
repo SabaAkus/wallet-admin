@@ -23,6 +23,7 @@ from app.models import (
     TransactionStatus,
     TransactionType,
     User,
+    UserRole,
     Wallet,
 )
 
@@ -60,6 +61,10 @@ class IdempotencyConflict(FinancialServiceError):
             "with a different immutable payload"
         )
         self.external_transaction_id = external_transaction_id
+
+
+class PermissionDenied(FinancialServiceError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -254,6 +259,13 @@ class FinancialService:
                 transaction = self._lock_transaction(session, transaction_id)
                 if transaction.source != TransactionSource.SYSTEM:
                     raise InvalidTransition("Historical transactions cannot be processed")
+                if transaction.transaction_type == TransactionType.REVERSAL:
+                    self._require_roles(actor, {UserRole.ADMINISTRATOR})
+                else:
+                    self._require_roles(
+                        actor,
+                        {UserRole.FINANCE_OPERATOR, UserRole.ADMINISTRATOR},
+                    )
 
                 if transaction.status == TransactionStatus.APPROVED:
                     posting = session.scalar(
@@ -376,10 +388,17 @@ class FinancialService:
         result: ProcessingResult | None = None
         with self._session_factory() as session:
             with _write_transaction(session):
-                self._validate_actor(session, actor_user_id)
                 transaction = self._lock_transaction(session, transaction_id)
                 if transaction.source != TransactionSource.SYSTEM:
                     raise InvalidTransition("Historical transactions cannot be cancelled")
+                actor = self._validate_actor(session, actor_user_id)
+                if transaction.transaction_type == TransactionType.REVERSAL:
+                    self._require_roles(actor, {UserRole.ADMINISTRATOR})
+                else:
+                    self._require_roles(
+                        actor,
+                        {UserRole.FINANCE_OPERATOR, UserRole.ADMINISTRATOR},
+                    )
                 if transaction.status == TransactionStatus.CANCELLED:
                     result = ProcessingResult(
                         transaction, posting=None, idempotent=True
@@ -409,6 +428,50 @@ class FinancialService:
             raise RuntimeError("Cancellation produced no result")
         return result
 
+    def fail_transaction(
+        self, transaction_id: str, *, actor_user_id: int, reason: str
+    ) -> ProcessingResult:
+        if not reason.strip():
+            raise ValidationError("Failure reason is required")
+        result: ProcessingResult | None = None
+        with self._session_factory() as session:
+            with _write_transaction(session):
+                actor = self._validate_actor(session, actor_user_id)
+                transaction = self._lock_transaction(session, transaction_id)
+                if transaction.source != TransactionSource.SYSTEM:
+                    raise InvalidTransition("Historical transactions cannot be processed")
+                if transaction.transaction_type == TransactionType.REVERSAL:
+                    self._require_roles(actor, {UserRole.ADMINISTRATOR})
+                else:
+                    self._require_roles(
+                        actor,
+                        {UserRole.FINANCE_OPERATOR, UserRole.ADMINISTRATOR},
+                    )
+                if transaction.status == TransactionStatus.FAILED:
+                    result = ProcessingResult(transaction, posting=None, idempotent=True)
+                elif transaction.status != TransactionStatus.PENDING:
+                    raise InvalidTransition(
+                        f"Cannot fail a {transaction.status.value} transaction"
+                    )
+                else:
+                    transaction.status = TransactionStatus.FAILED
+                    transaction.status_reason = reason.strip()
+                    self._audit(
+                        session,
+                        action="transaction.failed",
+                        transaction=transaction,
+                        actor_user_id=actor.id,
+                        before_values={"status": TransactionStatus.PENDING.value},
+                        after_values={
+                            "status": TransactionStatus.FAILED.value,
+                            "reason": transaction.status_reason,
+                        },
+                    )
+                    result = ProcessingResult(transaction, posting=None, idempotent=False)
+        if result is None:
+            raise RuntimeError("Failure transition produced no result")
+        return result
+
     def create_reversal(
         self,
         original_transaction_id: str,
@@ -419,8 +482,8 @@ class FinancialService:
         occurred_at: datetime | None = None,
     ) -> CreationResult:
         external_id = external_transaction_id.strip()
-        if not external_id:
-            raise ValidationError("external_transaction_id is required")
+        if not external_id or len(external_id) > 150:
+            raise ValidationError("external_transaction_id is required and at most 150 characters")
         if not reason.strip():
             raise ValidationError("Reversal reason is required")
         occurred = _normalized_utc(occurred_at or _now())
@@ -430,6 +493,7 @@ class FinancialService:
         with self._session_factory() as session:
             with _write_transaction(session):
                 actor = self._validate_actor(session, actor_user_id)
+                self._require_roles(actor, {UserRole.ADMINISTRATOR})
                 original = self._lock_transaction(session, original_transaction_id)
                 if original.source != TransactionSource.SYSTEM:
                     raise InvalidTransition("Only system transactions may be reversed")
@@ -547,8 +611,8 @@ class FinancialService:
             raise ValidationError("player_external_id is required")
         if not operator_code:
             raise ValidationError("operator_code is required")
-        if not country:
-            raise ValidationError("country is required")
+        if not country or len(country) > 100:
+            raise ValidationError("country is required and at most 100 characters")
         if len(currency) != 3 or not currency.isalpha():
             raise ValidationError("currency must be a three-letter code")
         if isinstance(command.amount_minor, bool) or not isinstance(
@@ -581,7 +645,10 @@ class FinancialService:
     def _validate_creation_references(
         self, session: Session, command: CreateTransactionCommand
     ) -> tuple[Player, Operator, Wallet]:
-        self._validate_actor(session, command.actor_user_id)
+        actor = self._validate_actor(session, command.actor_user_id)
+        self._require_roles(
+            actor, {UserRole.FINANCE_OPERATOR, UserRole.ADMINISTRATOR}
+        )
         player = session.scalar(
             select(Player).where(
                 Player.external_player_id == command.player_external_id
@@ -610,6 +677,11 @@ class FinancialService:
         if actor is None or not actor.is_active:
             raise RecordNotFound("Active actor user was not found")
         return actor
+
+    @staticmethod
+    def _require_roles(actor: User, allowed_roles: set[UserRole]) -> None:
+        if actor.role not in allowed_roles:
+            raise PermissionDenied("User role is not permitted for this action")
 
     def _lock_transaction(self, session: Session, transaction_id: str) -> Transaction:
         statement = select(Transaction).where(Transaction.id == transaction_id)
